@@ -8,14 +8,16 @@ module sui_stream::profile {
 
 
     // === Errors ===
+
     const ENotOwner: u64 = 0;
     const EBalanceZero: u64 = 1;
     const EBalanceNotZero: u64 = 2;
     const EAlreadyFollowing: u64 = 3;
     const ENotFollowing: u64 = 4;
 
-    
+
     // === Structs ===
+
     public struct Profile has key {
         id: UID,
         username: String,
@@ -83,7 +85,7 @@ module sui_stream::profile {
     // === Owner Functions ===
 
     public fun follow(self: &mut Profile, cap: &ProfileOwnerCap, follow_to: &mut Profile) {
-        assert!(self.has_access(cap), ENotOwner);
+        self.assert_has_access(cap);
 
         assert!(!self.follows.contains(&follow_to.id.to_inner()), EAlreadyFollowing);
 
@@ -94,7 +96,7 @@ module sui_stream::profile {
     }
 
     public fun unfollow(self: &mut Profile, cap: &ProfileOwnerCap, unfollow_from: &mut Profile) {
-        assert!(self.has_access(cap), ENotOwner);
+        self.assert_has_access(cap);
 
         let (contains, index) = self.follows.index_of(&unfollow_from.id.to_inner());
         assert!(contains, ENotFollowing);
@@ -108,7 +110,7 @@ module sui_stream::profile {
     }
 
     public fun withdraw_tip(self: &mut Profile, cap: &ProfileOwnerCap, ctx: &mut TxContext): Coin<SUI> {
-        assert!(self.has_access(cap), ENotOwner);
+        self.assert_has_access(cap);
 
         assert!(self.balance.value() != 0, EBalanceZero);
 
@@ -116,22 +118,22 @@ module sui_stream::profile {
     }
 
     public fun set_username(self: &mut Profile, cap: &ProfileOwnerCap, username: String) {
-        assert!(self.has_access(cap), ENotOwner);
+        self.assert_has_access(cap);
         self.username = username;
     }
 
     public fun set_bio(self: &mut Profile, cap: &ProfileOwnerCap, bio: String) {
-        assert!(self.has_access(cap), ENotOwner);
+        self.assert_has_access(cap);
         self.bio = bio;
     }
 
-    public fun set_pfpl(self: &mut Profile, cap: &ProfileOwnerCap, pfp: String) {
-        assert!(self.has_access(cap), ENotOwner);
+    public fun set_pfp(self: &mut Profile, cap: &ProfileOwnerCap, pfp: String) {
+        self.assert_has_access(cap);
         self.pfp= pfp;
     }
 
     public fun delete_profile(self: Profile, cap: ProfileOwnerCap) {
-        assert!(self.has_access(&cap), ENotOwner);
+        self.assert_has_access(&cap);
         assert!(self.balance.value() == 0, EBalanceNotZero);
 
         let Profile {
@@ -155,8 +157,8 @@ module sui_stream::profile {
 
     // === Private Functions ===
 
-    fun has_access(self: &Profile, cap: &ProfileOwnerCap): bool {
-        object::id(self) == cap.profile_id
+    public(package) fun assert_has_access(self: &Profile, cap: &ProfileOwnerCap) {
+        assert!(object::id(self) == cap.profile_id, ENotOwner);
     }
 
 }
