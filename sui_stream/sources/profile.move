@@ -4,6 +4,8 @@ module sui_stream::profile {
     use sui::balance::{Self, Balance};
     use sui::coin::{Self, Coin};
     use sui::sui::SUI;
+    use sui::clock::Clock;
+    use sui::table::{Self, Table};
     use sui::event;
 
 
@@ -23,8 +25,9 @@ module sui_stream::profile {
         username: String,
         bio: String,
         pfp: String,
-        followers: vector<ID>, // change to some dynamic structure (LinkedTable?)
-        follows:vector<ID>, // change to some dynamic structure (LinkedTable?)
+        // profile id to timestamp
+        followers: Table<ID, u64>,
+        follows: Table<ID, u64>,
         balance: Balance<SUI>,
         owner_cap: ID,
     }
@@ -40,6 +43,10 @@ module sui_stream::profile {
         profile_id: ID,
     }
 
+    public struct ProfileDeleted has copy, drop {
+        profile_id: ID,
+    }
+
     public struct Followed has copy, drop {
         by: ID,
         to: ID,
@@ -48,6 +55,16 @@ module sui_stream::profile {
     public struct Unfollowed has copy, drop {
         by: ID,
         from: ID,
+    }
+
+    public struct Tipped has copy, drop {
+        profile_id: ID,
+        amount: u64,
+    }
+
+    public struct WithdrawTip has copy, drop {
+        profile_id: ID,
+        amount: u64,
     }
 
 
@@ -60,8 +77,8 @@ module sui_stream::profile {
             username,
             bio,
             pfp,
-            followers: vector::empty(),
-            follows: vector::empty(),
+            followers: table::new(ctx),
+            follows: table::new(ctx),
             balance: balance::zero(),
             owner_cap: owner_id.to_inner(),
         };
@@ -78,62 +95,65 @@ module sui_stream::profile {
     }
 
     public fun tip(self: &mut Profile, amount: Coin<SUI>) {
+        assert!(amount.value() != 0, EBalanceZero);
+        event::emit(Tipped { profile_id: self.id.to_inner(), amount: amount.value() });
         self.balance.join(amount.into_balance());
     }
 
 
     // === Owner Functions ===
 
-    public fun follow(self: &mut Profile, cap: &ProfileOwnerCap, follow_to: &mut Profile) {
-        self.assert_has_access(cap);
+    public fun follow(self: &mut Profile, cap: &ProfileOwnerCap, follow_to: &mut Profile, clock: &Clock) {
+        assert!(self.has_access(cap), ENotOwner);
+        assert!(!self.follows.contains(follow_to.id.to_inner()), EAlreadyFollowing);
 
-        assert!(!self.follows.contains(&follow_to.id.to_inner()), EAlreadyFollowing);
+        let timestamp = clock.timestamp_ms();
 
-        self.follows.push_back(follow_to.id.to_inner());
-        follow_to.followers.push_back(self.id.to_inner());
+        self.follows.add(follow_to.id.to_inner(), timestamp);
+        follow_to.followers.add(self.id.to_inner(), timestamp);
 
         event::emit(Followed { by: self.id.to_inner(), to: follow_to.id.to_inner() });
     }
 
     public fun unfollow(self: &mut Profile, cap: &ProfileOwnerCap, unfollow_from: &mut Profile) {
-        self.assert_has_access(cap);
+        assert!(self.has_access(cap), ENotOwner);
 
-        let (contains, index) = self.follows.index_of(&unfollow_from.id.to_inner());
-        assert!(contains, ENotFollowing);
-        self.follows.swap_remove(index);
+        assert!(self.follows.contains(unfollow_from.id.to_inner()), ENotFollowing);
+        self.follows.remove(unfollow_from.id.to_inner());
 
-        let (contains, index) = self.follows.index_of(&unfollow_from.id.to_inner());
-        assert!(contains, ENotFollowing);
-        unfollow_from.followers.swap_remove(index);
+        assert!(unfollow_from.followers.contains(self.id.to_inner()), ENotFollowing);
+        unfollow_from.followers.remove(self.id.to_inner());
 
         event::emit(Unfollowed { by: self.id.to_inner(), from: unfollow_from.id.to_inner() });
     }
 
     public fun withdraw_tip(self: &mut Profile, cap: &ProfileOwnerCap, ctx: &mut TxContext): Coin<SUI> {
-        self.assert_has_access(cap);
-
+        assert!(self.has_access(cap), ENotOwner);
         assert!(self.balance.value() != 0, EBalanceZero);
 
+        event::emit(WithdrawTip { profile_id: self.id.to_inner(), amount: self.balance.value() });
+
         coin::from_balance(self.balance.withdraw_all(), ctx)
+
     }
 
     public fun set_username(self: &mut Profile, cap: &ProfileOwnerCap, username: String) {
-        self.assert_has_access(cap);
+        assert!(self.has_access(cap), ENotOwner);
         self.username = username;
     }
 
     public fun set_bio(self: &mut Profile, cap: &ProfileOwnerCap, bio: String) {
-        self.assert_has_access(cap);
+        assert!(self.has_access(cap), ENotOwner);
         self.bio = bio;
     }
 
     public fun set_pfp(self: &mut Profile, cap: &ProfileOwnerCap, pfp: String) {
-        self.assert_has_access(cap);
+        assert!(self.has_access(cap), ENotOwner);
         self.pfp= pfp;
     }
 
     public fun delete_profile(self: Profile, cap: ProfileOwnerCap) {
-        self.assert_has_access(&cap);
+        assert!(self.has_access(&cap), ENotOwner);
         assert!(self.balance.value() == 0, EBalanceNotZero);
 
         let Profile {
@@ -141,12 +161,16 @@ module sui_stream::profile {
             username: _,
             bio: _,
             pfp: _,
-            followers: _,
-            follows: _,
+            followers,
+            follows,
             balance,
             owner_cap: _,
         } = self;
 
+        event::emit(ProfileDeleted { profile_id: id.to_inner() });
+
+        followers.drop();
+        follows.drop();
         balance.destroy_zero();
         id.delete();
 
@@ -155,10 +179,16 @@ module sui_stream::profile {
     }
 
 
+    // === Public-Package Functions ===
+
+    public(package) fun profile_id(cap: &ProfileOwnerCap): ID {
+        cap.profile_id
+    }
+
     // === Private Functions ===
 
-    public(package) fun assert_has_access(self: &Profile, cap: &ProfileOwnerCap) {
-        assert!(object::id(self) == cap.profile_id, ENotOwner);
+    fun has_access(self: &Profile, cap: &ProfileOwnerCap): bool {
+        object::id(self) == cap.profile_id
     }
 
 }

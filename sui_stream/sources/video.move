@@ -2,10 +2,10 @@ module sui_stream::video {
 
     use std::string::String;
     use sui::clock::Clock;
-    use sui::linked_table::{Self, LinkedTable};
+    use sui::table::{Self, Table};
     use sui::event;
 
-    use sui_stream::profile::{Profile, ProfileOwnerCap};
+    use sui_stream::profile::{Self, ProfileOwnerCap};
 
     // === Errors ===
 
@@ -21,7 +21,7 @@ module sui_stream::video {
         url: String,
         length: u64,
         timestamp_ms: u64,
-        created_by: address,
+        created_by: ID,
     }
 
     public struct VideoStats has key {
@@ -29,11 +29,11 @@ module sui_stream::video {
         for_video: ID,
         views: u64,
         // profile id to timestamp
-        likes: LinkedTable<ID, u64>,
+        likes: Table<ID, u64>,
         comment_id: u64,
         // comment_id to comment
-        comments: LinkedTable<u64, Comment>,
-        comments_by_profile: LinkedTable<ID, vector<u64>>,
+        comments: Table<u64, Comment>,
+        comments_by_profile: Table<ID, vector<u64>>,
     }
 
     public struct Comment has store, drop {
@@ -43,6 +43,11 @@ module sui_stream::video {
     }
 
     // === Events ===
+
+    public struct VideoCreated has copy, drop {
+        profile_id: ID,
+        video_id: ID,
+    }
 
     public struct VideoLiked has copy, drop {
         profile_id: ID,
@@ -69,17 +74,18 @@ module sui_stream::video {
 
     // === Public-Mutative Functions ===
 
-    public fun create_video(url: String, length: u64, clock: &Clock, ctx: &mut TxContext): Video {
+    public fun create_video(profile_cap: &ProfileOwnerCap, url: String, length: u64, clock: &Clock, ctx: &mut TxContext): Video {
         let video_id = object::new(ctx);
+        event::emit(VideoCreated { profile_id: profile::profile_id(profile_cap), video_id: video_id.to_inner() });
 
         let video_stats: VideoStats = VideoStats {
             id: object::new(ctx),
             for_video: video_id.to_inner(),
             views: 0,
-            likes: linked_table::new(ctx),
+            likes: table::new(ctx),
             comment_id: 0,
-            comments: linked_table::new(ctx),
-            comments_by_profile: linked_table::new(ctx),
+            comments: table::new(ctx),
+            comments_by_profile: table::new(ctx),
         };
 
 
@@ -89,7 +95,7 @@ module sui_stream::video {
             url,
             length,
             timestamp_ms: clock.timestamp_ms(),
-            created_by: ctx.sender(),
+            created_by: profile::profile_id(profile_cap),
         };
 
         transfer::share_object(video_stats);
@@ -97,38 +103,36 @@ module sui_stream::video {
         video
     }
 
-    public fun like(profile: &Profile, profile_cap: &ProfileOwnerCap, video_stats: &mut VideoStats, clock: &Clock) {
-        profile.assert_has_access(profile_cap);
+    public fun like(video_stats: &mut VideoStats, profile_cap: &ProfileOwnerCap, clock: &Clock) {
+        let profile_id = profile::profile_id(profile_cap);
 
-        assert!(!video_stats.likes.contains(object::id(profile)), EAlreadyLiked);
+        assert!(!video_stats.likes.contains(profile_id), EAlreadyLiked);
 
         let timestamp = clock.timestamp_ms();
-        video_stats.likes.push_back(object::id(profile), timestamp);
+        video_stats.likes.add(profile_id, timestamp);
 
-        event::emit(VideoLiked { profile_id: object::id(profile), video_id: video_stats.for_video });
+        event::emit(VideoLiked { profile_id, video_id: video_stats.for_video });
     }
 
-    public fun unlike(profile: &Profile, profile_cap: &ProfileOwnerCap, video_stats: &mut VideoStats) {
-        profile.assert_has_access(profile_cap);
+    public fun unlike(video_stats: &mut VideoStats, profile_cap: &ProfileOwnerCap) {
+        let profile_id = profile::profile_id(profile_cap);
 
-        assert!(video_stats.likes.contains(object::id(profile)), ENotLiked);
-        video_stats.likes.remove(object::id(profile));
+        assert!(video_stats.likes.contains(profile_id), ENotLiked);
+        video_stats.likes.remove(profile_id);
 
-        event::emit(VideoUnliked { profile_id: object::id(profile), video_id: video_stats.for_video });
+        event::emit(VideoUnliked { profile_id, video_id: video_stats.for_video });
     }
 
-    public fun comment(profile: &Profile, profile_cap: &ProfileOwnerCap, video_stats: &mut VideoStats, text: String, clock: &Clock) {
-        profile.assert_has_access(profile_cap);
+    public fun comment(video_stats: &mut VideoStats, profile_cap: &ProfileOwnerCap, text: String, clock: &Clock) {
+        let profile_id = profile::profile_id(profile_cap);
 
-        video_stats.comments.push_back(
+        video_stats.comments.add(
             video_stats.comment_id,
-            Comment { by: object::id(profile), text, timestamp_ms: clock.timestamp_ms() }
+            Comment { by: profile_id, text, timestamp_ms: clock.timestamp_ms() }
         );
 
-        let profile_id = object::id(profile);
-
         if (!video_stats.comments_by_profile.contains(profile_id)) {
-            video_stats.comments_by_profile.push_back(profile_id, vector::empty());
+            video_stats.comments_by_profile.add(profile_id, vector::empty());
         };
 
         let mut comments = video_stats.comments_by_profile[profile_id];
@@ -139,14 +143,12 @@ module sui_stream::video {
         video_stats.comment_id = video_stats.comment_id + 1;
     }
 
-    public fun delete_comment(profile: &Profile, profile_cap: &ProfileOwnerCap, comment_id: u64, video_stats: &mut VideoStats) {
-        profile.assert_has_access(profile_cap);
+    public fun delete_comment(video_stats: &mut VideoStats, profile_cap: &ProfileOwnerCap, comment_id: u64) {
+        let profile_id = profile::profile_id(profile_cap);
 
         assert!(video_stats.comments.contains(comment_id), ECommentNotFound);
 
         video_stats.comments.remove(comment_id);
-
-        let profile_id = object::id(profile);
 
         let mut comments = video_stats.comments_by_profile[profile_id];
         let (found, index) = comments.index_of(&comment_id);
