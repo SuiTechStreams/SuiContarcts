@@ -100,6 +100,16 @@ module sui_stream::profile {
         self.balance.join(amount.into_balance());
     }
 
+    // === Public-View Functions ===
+
+    public fun isFollowing(self: &Profile, profile_id: ID): bool {
+        self.follows.contains(profile_id.to_inner())
+    }
+
+    public fun isFollower(self: &Profile, profile_id: ID): bool {
+        self.followers.contains(profile_id.to_inner())
+    }
+
 
     // === Owner Functions ===
 
