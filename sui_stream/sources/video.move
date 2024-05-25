@@ -33,6 +33,7 @@ module sui_stream::video {
         comment_id: u64,
         // comment_id to comment
         comments: Table<u64, Comment>,
+        // profile id to vector of comment ids
         comments_by_profile: Table<ID, vector<u64>>,
     }
 
