@@ -103,11 +103,11 @@ module sui_stream::profile {
     // === Public-View Functions ===
 
     public fun isFollowing(self: &Profile, profile_id: ID): bool {
-        self.follows.contains(profile_id.to_inner())
+        self.follows.contains(profile_id)
     }
 
     public fun isFollower(self: &Profile, profile_id: ID): bool {
-        self.followers.contains(profile_id.to_inner())
+        self.followers.contains(profile_id)
     }
 
 
