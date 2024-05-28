@@ -110,6 +110,21 @@ module sui_stream::profile {
         self.followers.contains(profile_id)
     }
 
+    public fun balance(self: &Profile): u64 {
+        balance::value(&self.balance)
+    }
+
+    public fun username(self: &Profile): String {
+        self.username
+    }
+
+    public fun bio(self: &Profile): String {
+        self.bio
+    }
+
+    public fun pfp(self: &Profile): String {
+        self.pfp
+    }
 
     // === Owner Functions ===
 
