@@ -1,14 +1,9 @@
 #[test_only]
 module sui_stream::test {
-    use sui::test_scenario::{Self, next_tx};
+    use sui::test_scenario;
     use sui::sui::SUI;
-    use sui::transfer;
-    use sui::object::{Self, UID, ID};
-    use sui::tx_context::{Self, TxContext};
-    use sui::coin::{Self, Coin};
-    use sui::clock::{Self, Clock};
+    use sui::coin;
     use sui_stream::profile::{Self as profile, Profile, ProfileOwnerCap};
-    use std::string::{Self, String};
 
     // === Users ===
     const USER: address = @0xab;
