@@ -111,7 +111,7 @@ module sui_stream::profile {
     }
 
     public fun balance(self: &Profile): u64 {
-        balance::value(&self.balance)
+        self.balance.value()
     }
 
     public fun username(self: &Profile): String {
