@@ -2,21 +2,16 @@ import { TransactionBlock } from "@mysten/sui.js/transactions";
 import { client, keypair, getId, getProfile } from "./utils.ts";
 import { SUI_CLOCK_OBJECT_ID } from "@mysten/sui.js/utils";
 
-async function follow(
-  profileId: string,
-  profileCapId: string,
-  profileIdFollow: string
-) {
+async function likeVideo(videoStatsId: string, profileCapId: string) {
   const tx = new TransactionBlock();
 
   tx.moveCall({
     arguments: [
-      tx.object(profileId),
+      tx.object(videoStatsId),
       tx.object(profileCapId),
-      tx.pure(profileIdFollow),
       tx.object(SUI_CLOCK_OBJECT_ID),
     ],
-    target: `${getId("package")}::profile::follow`,
+    target: `${getId("package")}::video::like`,
   });
 
   const result = await client.signAndExecuteTransactionBlock({
@@ -29,12 +24,13 @@ async function follow(
 (async () => {
   const currentAccount = keypair.getPublicKey().toSuiAddress();
 
-  const { profileCapId, profileId } = await getProfile(currentAccount);
+  const { profileCapId } = await getProfile(currentAccount);
 
-  const profileIdFollow =
-    "0x157db3ca1a51ceaf9169f62eadf2158b4adc70fa28114945923601c598fdb7fe";
+  // get a Video object and than from video.stats there will be id for VideoStats
+  const videStatsId =
+    "0xc586dbbd022cee34d9eae417c9146115aa095d8d888de76ca41edf02fe8dfd74";
 
-  await follow(profileId, profileCapId, profileIdFollow);
+  await likeVideo(videStatsId, profileCapId);
 
   console.log("done");
 })().catch((e) => {
