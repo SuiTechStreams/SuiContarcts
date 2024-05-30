@@ -30,6 +30,7 @@ module sui_stream::video {
         views: u64,
         // profile id to timestamp
         likes: Table<ID, u64>,
+        // next comment id
         comment_id: u64,
         // comment_id to comment
         comments: Table<u64, Comment>,
@@ -136,7 +137,7 @@ module sui_stream::video {
             video_stats.comments_by_profile.add(profile_id, vector::empty());
         };
 
-        let mut comments = video_stats.comments_by_profile[profile_id];
+        let comments = &mut video_stats.comments_by_profile[profile_id];
         comments.push_back(video_stats.comment_id);
 
         event::emit(VideoCommented { profile_id, video_id: video_stats.for_video, comment_id: video_stats.comment_id });
@@ -151,7 +152,7 @@ module sui_stream::video {
 
         video_stats.comments.remove(comment_id);
 
-        let mut comments = video_stats.comments_by_profile[profile_id];
+        let comments = &mut video_stats.comments_by_profile[profile_id];
         let (found, index) = comments.index_of(&comment_id);
         assert!(found, ECommentNotFound);
         comments.remove(index);
