@@ -1,5 +1,6 @@
 import { getFullnodeUrl, SuiClient } from "@mysten/sui.js/client";
 import { Ed25519Keypair } from "@mysten/sui.js/keypairs/ed25519";
+import { decodeSuiPrivateKey } from "@mysten/sui.js/cryptography";
 import dotenv from "dotenv";
 import * as fs from "fs";
 
@@ -10,8 +11,14 @@ export interface IObjectInfo {
 
 dotenv.config();
 
+// Base64 format
+// export const keypair = Ed25519Keypair.fromSecretKey(
+//   Uint8Array.from(Buffer.from(process.env.KEY!, "base64")).slice(1)
+// );
+
+// Bech32 format
 export const keypair = Ed25519Keypair.fromSecretKey(
-  Uint8Array.from(Buffer.from(process.env.KEY!, "base64")).slice(1)
+  decodeSuiPrivateKey(process.env.KEY!).secretKey
 );
 
 export const client = new SuiClient({ url: getFullnodeUrl("devnet") });
