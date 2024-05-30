@@ -123,7 +123,7 @@ module sui_stream::test {
 
             video::like(&mut video_stats, &profile_cap, &clock);
 
-            assert!(video::likes(&video_stats) == 1, 0);
+            assert!(video::likes_length(&video_stats) == 1, 0);
 
             test_scenario::return_shared(video_stats);
             test_scenario::return_to_sender(scenario, profile_cap);
@@ -138,7 +138,7 @@ module sui_stream::test {
 
             video::unlike(&mut video_stats, &profile_cap);
 
-            assert!(video::likes(&video_stats) == 0, 0);
+            assert!(video::likes_length(&video_stats) == 0, 0);
 
             test_scenario::return_shared(video_stats);
             test_scenario::return_to_sender(scenario, profile_cap);
@@ -154,7 +154,7 @@ module sui_stream::test {
 
             video::comment(&mut video_stats, &profile_cap, text, &clock);
 
-            assert!(video::comments(&video_stats) == 1, 0);
+            assert!(video::comments_length(&video_stats) == 1, 0);
             assert!(video_stats.comment_id() == 1, 0);
 
             test_scenario::return_shared(video_stats);
@@ -171,7 +171,7 @@ module sui_stream::test {
 
             video::delete_comment(&mut video_stats, &profile_cap, comment_id);
             
-            assert!(video::comments(&video_stats) == 0, 0);
+            assert!(video::comments_length(&video_stats) == 0, 0);
 
             test_scenario::return_shared(video_stats);
             test_scenario::return_to_sender(scenario, profile_cap);
