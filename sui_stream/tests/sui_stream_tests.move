@@ -155,7 +155,7 @@ module sui_stream::test {
             video::comment(&mut video_stats, &profile_cap, text, &clock);
 
             assert!(video::comments(&video_stats) == 1, 0);
-            assert!(video_stats.comment_id() == 0, 0);
+            assert!(video_stats.comment_id() == 1, 0);
 
             test_scenario::return_shared(video_stats);
             test_scenario::return_to_sender(scenario, profile_cap);
@@ -163,25 +163,19 @@ module sui_stream::test {
         };
 
         // === Test Delete Comment ===
-        /*test_scenario::next_tx(scenario, USER);
+        test_scenario::next_tx(scenario, USER);
         {
             let mut video_stats = test_scenario::take_shared<VideoStats>(scenario);
             let profile_cap = test_scenario::take_from_sender<ProfileOwnerCap>(scenario);
-            let comment_id = video_stats.comment_id();
+            let comment_id = video_stats.comment_id() - 1;
 
             video::delete_comment(&mut video_stats, &profile_cap, comment_id);
             
-            assert!(video_stats.comment_id() == 1, 0);
+            assert!(video::comments(&video_stats) == 0, 0);
 
             test_scenario::return_shared(video_stats);
             test_scenario::return_to_sender(scenario, profile_cap);
-        };*/
-
-
-
-
-
-
+        };
 
         // === Test Delete Profile ===
         test_scenario::next_tx(scenario, USER);
