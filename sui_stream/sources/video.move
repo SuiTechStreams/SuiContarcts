@@ -160,5 +160,17 @@ module sui_stream::video {
         event::emit(VideoCommentDeleted { profile_id, video_id: video_stats.for_video, comment_id });
     }
 
+    // === Helper Functions ===
+    public fun likes(table: &VideoStats): u64 {
+        table::length(&table.likes)
+    }
+
+    public fun comments(table: &VideoStats): u64 {
+        table::length(&table.comments)
+    }
+
+    public fun comment_id(self: &VideoStats): u64 {
+        self.comment_id
+    }
 
 } 
